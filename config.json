@@ -1,0 +1,36 @@
+{
+  "signaling": {
+    "url": "wss://tools.321100.xyz",
+    "description": "WebSocket信令服务器地址"
+  },
+  "stun": {
+    "servers": [
+      "stun:172.16.1.106:19302",
+      "stun:172.16.1.106:19302"
+    ],
+    "description": "STUN服务器列表，用于NAT穿透"
+  },
+  "turn": {
+    "server": "turn:172.16.1.106:3478",
+    "username": "zhaotao",
+    "password": "zhaotao198",
+    "description": "TURN服务器配置，用于中继连接"
+  },
+  "webrtc": {
+    "iceCandidatePoolSize": 10,
+    "iceTransportPolicy": "all",
+    "description": "WebRTC连接配置"
+  },
+  "video": {
+    "width": 1920,
+    "height": 1080,
+    "frameRate": 59,
+    "description": "视频质量配置"
+  },
+  "ui": {
+    "autoConnect": true,
+    "showDebugLogs": true,
+    "theme": "default",
+    "description": "界面配置选项"
+  }
+}

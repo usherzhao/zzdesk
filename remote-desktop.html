@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC远程桌面 - 屏幕共享端</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .config-section {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-group label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .input-group input {
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 150px;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #1976D2;
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .video-section {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .video-container {
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .video-container h3 {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+
+        video {
+            width: 100%;
+            height: 300px;
+            object-fit: contain;
+        }
+
+        .status-section {
+            padding: 30px;
+            background: #f8f9fa;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .status-item.error {
+            border-left-color: #f44336;
+        }
+
+        .status-item.warning {
+            border-left-color: #ff9800;
+        }
+
+        .connection-id {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .connection-id h3 {
+            color: #1976d2;
+            margin-bottom: 10px;
+        }
+
+        .connection-id code {
+            background: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .logs {
+            background: #263238;
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 2px 0;
+        }
+
+        .log-entry.error {
+            color: #ff5252;
+        }
+
+        .log-entry.success {
+            color: #4caf50;
+        }
+
+        .log-entry.warning {
+            color: #ff9800;
+        }
+
+        @media (max-width: 768px) {
+            .video-section {
+                grid-template-columns: 1fr;
+            }
+            
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🖥️ WebRTC远程桌面</h1>
+            <p>屏幕共享端 - 分享您的桌面给远程用户</p>
+        </div>
+
+        <div class="config-section">
+            <h3>🔧 COTURN服务器配置</h3>
+            <div class="config-grid">
+                <div class="input-group">
+                    <label for="stunServer">STUN服务器</label>
+                    <input type="text" id="stunServer" placeholder="stun:your-server:3478" value="stun:127.0.0.1:3478">
+                </div>
+                <div class="input-group">
+                    <label for="turnServer">TURN服务器</label>
+                    <input type="text" id="turnServer" placeholder="turn:your-server:3478" value="turn:127.0.0.1:3478">
+                </div>
+                <div class="input-group">
+                    <label for="turnUsername">TURN用户名</label>
+                    <input type="text" id="turnUsername" placeholder="用户名" value="testuser">
+                </div>
+                <div class="input-group">
+                    <label for="turnPassword">TURN密码</label>
+                    <input type="password" id="turnPassword" placeholder="密码" value="testpass">
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" id="startShareBtn" onclick="startScreenShare()">🚀 开始屏幕共享</button>
+                <button class="btn btn-danger" id="stopShareBtn" onclick="stopScreenShare()" disabled>⏹️ 停止共享</button>
+                <button class="btn btn-secondary" onclick="copyConnectionId()">📋 复制连接ID</button>
+            </div>
+
+            <div class="connection-id" id="connectionIdSection" style="display: none;">
+                <h3>📱 连接ID</h3>
+                <p>将此ID发送给需要观看的用户：</p>
+                <code id="connectionId"></code>
+            </div>
+        </div>
+
+        <div class="video-section">
+            <div class="video-container">
+                <h3>📺 本地屏幕预览</h3>
+                <video id="localVideo" autoplay muted></video>
+            </div>
+            <div class="video-container">
+                <h3>🔗 连接状态</h3>
+                <div class="logs" id="logs"></div>
+            </div>
+        </div>
+
+        <div class="status-section">
+            <h3>📊 连接状态</h3>
+            <div id="statusContainer">
+                <div class="status-item">
+                    <span>🔴</span>
+                    <span>等待开始屏幕共享...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let localStream = null;
+        let peerConnection = null;
+        let signalingSocket = null;
+        let connectionId = null;
+        let isSharing = false;
+
+        // 简单的信令服务器模拟（实际应用中需要真实的信令服务器）
+        class SimpleSignaling {
+            constructor() {
+                this.connections = new Map();
+                this.messageHandlers = new Map();
+            }
+
+            connect(id) {
+                this.connectionId = id;
+                this.connections.set(id, this);
+                log(`信令连接已建立，ID: ${id}`, 'success');
+                return Promise.resolve();
+            }
+
+            send(targetId, message) {
+                // 模拟网络延迟
+                setTimeout(() => {
+                    const target = this.connections.get(targetId);
+                    if (target && target.onmessage) {
+                        target.onmessage({ data: JSON.stringify(message) });
+                    }
+                }, 100);
+            }
+
+            on(event, handler) {
+                this.messageHandlers.set(event, handler);
+            }
+
+            onmessage(event) {
+                const message = JSON.parse(event.data);
+                const handler = this.messageHandlers.get(message.type);
+                if (handler) {
+                    handler(message);
+                }
+            }
+        }
+
+        function log(message, type = 'info') {
+            const logs = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logs.appendChild(entry);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function updateStatus(message, type = 'info') {
+            const container = document.getElementById('statusContainer');
+            const statusItem = document.createElement('div');
+            statusItem.className = `status-item ${type}`;
+            
+            const icon = type === 'error' ? '🔴' : type === 'success' ? '🟢' : '🟡';
+            statusItem.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+            
+            container.appendChild(statusItem);
+        }
+
+        function generateConnectionId() {
+            return Math.random().toString(36).substr(2, 9).toUpperCase();
+        }
+
+        function getIceServers() {
+            const stunServer = document.getElementById('stunServer').value;
+            const turnServer = document.getElementById('turnServer').value;
+            const turnUsername = document.getElementById('turnUsername').value;
+            const turnPassword = document.getElementById('turnPassword').value;
+
+            const iceServers = [];
+            
+            if (stunServer) {
+                iceServers.push({ urls: stunServer });
+            }
+            
+            if (turnServer && turnUsername && turnPassword) {
+                iceServers.push({
+                    urls: turnServer,
+                    username: turnUsername,
+                    credential: turnPassword
+                });
+            }
+
+            return iceServers;
+        }
+
+        async function startScreenShare() {
+            try {
+                log('开始获取屏幕共享权限...', 'info');
+                
+                // 获取屏幕共享流
+                localStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
+                    },
+                    audio: true
+                });
+
+                // 显示本地预览
+                const localVideo = document.getElementById('localVideo');
+                localVideo.srcObject = localStream;
+
+                // 生成连接ID
+                connectionId = generateConnectionId();
+                document.getElementById('connectionId').textContent = connectionId;
+                document.getElementById('connectionIdSection').style.display = 'block';
+
+                // 初始化信令
+                signalingSocket = new SimpleSignaling();
+                await signalingSocket.connect(connectionId);
+
+                // 设置信令处理
+                setupSignaling();
+
+                // 更新UI状态
+                document.getElementById('startShareBtn').disabled = true;
+                document.getElementById('stopShareBtn').disabled = false;
+                isSharing = true;
+
+                log('屏幕共享已开始，等待远程连接...', 'success');
+                updateStatus('屏幕共享已开始，等待远程用户连接', 'success');
+
+                // 监听流结束事件
+                localStream.getVideoTracks()[0].addEventListener('ended', () => {
+                    log('用户停止了屏幕共享', 'warning');
+                    stopScreenShare();
+                });
+
+            } catch (error) {
+                log(`启动屏幕共享失败: ${error.message}`, 'error');
+                updateStatus(`启动失败: ${error.message}`, 'error');
+            }
+        }
+
+        function setupSignaling() {
+            signalingSocket.on('offer', async (message) => {
+                log('收到远程连接请求', 'info');
+                await handleOffer(message);
+            });
+
+            signalingSocket.on('ice-candidate', async (message) => {
+                if (peerConnection) {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
+                    log('添加ICE候选者', 'info');
+                }
+            });
+
+            signalingSocket.on('viewer-connected', () => {
+                log('远程用户已连接', 'success');
+                updateStatus('远程用户已连接，正在传输屏幕', 'success');
+            });
+        }
+
+        async function handleOffer(message) {
+            try {
+                // 创建RTCPeerConnection
+                const iceServers = getIceServers();
+                peerConnection = new RTCPeerConnection({ iceServers });
+
+                // 添加本地流
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // ICE候选者处理
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        signalingSocket.send(message.from, {
+                            type: 'ice-candidate',
+                            candidate: event.candidate,
+                            from: connectionId
+                        });
+                        log('发送ICE候选者', 'info');
+                    }
+                };
+
+                // 连接状态监控
+                peerConnection.onconnectionstatechange = () => {
+                    log(`连接状态: ${peerConnection.connectionState}`, 'info');
+                    updateStatus(`连接状态: ${peerConnection.connectionState}`, 
+                        peerConnection.connectionState === 'connected' ? 'success' : 'info');
+                };
+
+                // 设置远程描述
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(message.offer));
+
+                // 创建应答
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                // 发送应答
+                signalingSocket.send(message.from, {
+                    type: 'answer',
+                    answer: answer,
+                    from: connectionId
+                });
+
+                log('已发送连接应答', 'success');
+
+            } catch (error) {
+                log(`处理连接请求失败: ${error.message}`, 'error');
+            }
+        }
+
+        function stopScreenShare() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+
+            const localVideo = document.getElementById('localVideo');
+            localVideo.srcObject = null;
+
+            document.getElementById('startShareBtn').disabled = false;
+            document.getElementById('stopShareBtn').disabled = true;
+            document.getElementById('connectionIdSection').style.display = 'none';
+            
+            isSharing = false;
+
+            log('屏幕共享已停止', 'warning');
+            updateStatus('屏幕共享已停止', 'warning');
+        }
+
+        function copyConnectionId() {
+            if (connectionId) {
+                navigator.clipboard.writeText(connectionId).then(() => {
+                    log('连接ID已复制到剪贴板', 'success');
+                    updateStatus('连接ID已复制到剪贴板', 'success');
+                });
+            }
+        }
+
+        // 页面卸载时清理资源
+        window.addEventListener('beforeunload', () => {
+            if (isSharing) {
+                stopScreenShare();
+            }
+        });
+
+        // 初始化日志
+        log('WebRTC远程桌面系统已就绪', 'success');
+        log('请配置COTURN服务器信息，然后点击"开始屏幕共享"', 'info');
+    </script>
+</body>
+</html>

@@ -374,6 +374,48 @@
             return Math.random().toString(36).substr(2, 9).toUpperCase();
         }
 
+        async function hasPublicIP() {
+            try {
+                // 检测是否具有公网IP地址
+                const pc = new RTCPeerConnection({
+                    iceServers: [],
+                    iceTransportPolicy: 'relay' // 只使用TURN服务器，不使用STUN
+                });
+                
+                // 创建一个虚假的数据通道以触发ICE候选者收集
+                pc.createDataChannel('fake');
+                
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        const candidate = event.candidate.candidate;
+                        // 检查候选者是否包含公网IP
+                        if (candidate.includes('typ relay')) {
+                            // 如果是relay类型，则说明需要通过TURN服务器，可能没有公网IP
+                            pc.close();
+                            return false;
+                        } else if (candidate.includes('typ srflx')) {
+                            // 如果是srflx（server reflexive）类型，则说明有公网IP
+                            pc.close();
+                            return true;
+                        }
+                    } else {
+                        // 没有更多候选者，检查是否获得了主机候选者
+                        pc.close();
+                        return true; // 默认认为有公网IP
+                    }
+                };
+                
+                await pc.setLocalDescription();
+                // 等待一段时间以收集ICE候选者
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                return true; // 默认返回true
+            } catch (error) {
+                console.warn('Error checking public IP:', error);
+                return true; // 出错时默认认为有公网IP
+            }
+        }
+
         function getIceServers() {
             const stunServer = document.getElementById('stunServer').value;
             const turnServer = document.getElementById('turnServer').value;
@@ -382,11 +424,16 @@
 
             const iceServers = [];
             
-            if (stunServer) {
+            // 检查当前访问是否具有公网IP
+            const hasPublicIP = checkIfHasPublicIP();
+            
+            if (hasPublicIP && stunServer) {
+                // 如果有公网IP，仍然添加STUN服务器以帮助穿越NAT
                 iceServers.push({ urls: stunServer });
             }
             
             if (turnServer && turnUsername && turnPassword) {
+                // 始终添加TURN服务器作为备用
                 iceServers.push({
                     urls: turnServer,
                     username: turnUsername,
@@ -395,6 +442,50 @@
             }
 
             return iceServers;
+        }
+
+        function checkIfHasPublicIP() {
+            // 获取本机IP信息的一种方式
+            return new Promise((resolve) => {
+                const pc = new RTCPeerConnection({
+                    iceServers: []
+                });
+                
+                pc.createDataChannel('');
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        const candidate = event.candidate.candidate;
+                        if (candidate) {
+                            // 检查是否包含公网IP地址
+                            const ipMatch = candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+                            if (ipMatch) {
+                                const ip = ipMatch[1];
+                                // 检查是否为私有IP地址段
+                                const isPrivateIP = /^10\.|^172\.(1[6-9]|2\d|3[01])\.|^192\.168\.|^127\.|^169\.254\./.test(ip);
+                                if (!isPrivateIP) {
+                                    resolve(true); // 有公网IP
+                                    return;
+                                }
+                            }
+                        }
+                    } else {
+                        // 没有更多候选者时，默认认为有公网IP
+                        resolve(true);
+                    }
+                };
+
+                pc.createOffer()
+                    .then(offer => pc.setLocalDescription(offer))
+                    .catch(() => resolve(true)); // 出错时默认认为有公网IP
+                    
+                // 设置超时，避免长时间等待
+                setTimeout(() => {
+                    resolve(true);
+                    if (pc.signalingState !== 'closed') {
+                        pc.close();
+                    }
+                }, 2000);
+            });
         }
 
         async function startScreenShare() {

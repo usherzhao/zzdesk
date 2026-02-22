@@ -348,51 +348,41 @@
         let isConnected = false;
         let remoteStream = null;
 
-        // 检测公网IP并尝试直接连接
-        async function getPublicIP() {
-            try {
-                const response = await fetch('https://httpbin.org/ip');
-                const data = await response.json();
-                return data.origin;
-            } catch (error) {
-                console.warn('无法获取公网IP，可能位于NAT后面:', error);
-                return null;
+        // 简单的信令服务器模拟
+        class SimpleSignaling {
+            constructor() {
+                this.connections = new Map();
+                this.messageHandlers = new Map();
             }
-        }
 
-        // 创建RTCPeerConnection配置
-        function createPeerConnectionConfig(hasPublicIP) {
-            // 如果有公网IP，则只使用空的iceServers配置以实现直连
-            // 如果没有公网IP，则使用STUN/TURN服务器
-            const config = {};
-            
-            if (!hasPublicIP) {
-                const stunServer = document.getElementById('stunServer').value;
-                const turnServer = document.getElementById('turnServer').value;
-                const turnUsername = document.getElementById('turnUsername').value;
-                const turnPassword = document.getElementById('turnPassword').value;
+            connect(id) {
+                this.connectionId = id;
+                this.connections.set(id, this);
+                log(`信令连接已建立，ID: ${id}`, 'success');
+                return Promise.resolve();
+            }
 
-                const iceServers = [];
-                
-                if (stunServer) {
-                    iceServers.push({ urls: stunServer });
-                }
-                
-                if (turnServer && turnUsername && turnPassword) {
-                    iceServers.push({
-                        urls: turnServer,
-                        username: turnUsername,
-                        credential: turnPassword
-                    });
-                }
-                
-                if (iceServers.length > 0) {
-                    config.iceServers = iceServers;
+            send(targetId, message) {
+                // 模拟网络延迟
+                setTimeout(() => {
+                    const target = this.connections.get(targetId);
+                    if (target && target.onmessage) {
+                        target.onmessage({ data: JSON.stringify(message) });
+                    }
+                }, 100);
+            }
+
+            on(event, handler) {
+                this.messageHandlers.set(event, handler);
+            }
+
+            onmessage(event) {
+                const message = JSON.parse(event.data);
+                const handler = this.messageHandlers.get(message.type);
+                if (handler) {
+                    handler(message);
                 }
             }
-            // 如果有公网IP，我们不设置任何iceServers，实现直连
-            
-            return config;
         }
 
         function log(message, type = 'info') {
@@ -415,7 +405,28 @@
             container.appendChild(statusItem);
         }
 
+        function getIceServers() {
+            const stunServer = document.getElementById('stunServer').value;
+            const turnServer = document.getElementById('turnServer').value;
+            const turnUsername = document.getElementById('turnUsername').value;
+            const turnPassword = document.getElementById('turnPassword').value;
 
+            const iceServers = [];
+            
+            if (stunServer) {
+                iceServers.push({ urls: stunServer });
+            }
+            
+            if (turnServer && turnUsername && turnPassword) {
+                iceServers.push({
+                    urls: turnServer,
+                    username: turnUsername,
+                    credential: turnPassword
+                });
+            }
+
+            return iceServers;
+        }
 
         async function connectToRemote() {
             const connectionId = document.getElementById('connectionId').value.trim();
@@ -430,16 +441,16 @@
                 log(`正在连接到远程桌面: ${connectionId}`, 'info');
                 updateStatus('正在建立连接...', 'info');
 
-                // 检查是否具有公网IP
-                const publicIP = await getPublicIP();
-                const hasPublicIP = publicIP !== null && publicIP.includes('.');
-                log(`检测到公网IP: ${publicIP || '无'}`, hasPublicIP ? 'success' : 'warning');
-                
-                // 根据是否有公网IP来创建连接配置
-                const pcConfig = createPeerConnectionConfig(hasPublicIP);
-                
+                // 初始化信令
+                signalingSocket = new SimpleSignaling();
+                await signalingSocket.connect(`viewer_${Date.now()}`);
+
+                // 设置信令处理
+                setupSignaling();
+
                 // 创建RTCPeerConnection
-                peerConnection = new RTCPeerConnection(pcConfig);
+                const iceServers = getIceServers();
+                peerConnection = new RTCPeerConnection({ iceServers });
 
                 // 设置事件处理
                 setupPeerConnection();

@@ -1,6 +1,6 @@
 {
   "signaling": {
-    "url": "wss://",
+    "url": "wss://tools.321100.xyz",
     "description": "WebSocket信令服务器地址"
   },
   "stun": {
@@ -12,8 +12,8 @@
   },
   "turn": {
     "server": "turn:172.16.1.106:3478",
-    "username": "",
-    "password": "",
+    "username": "zhaotao",
+    "password": "zhaotao198",
     "description": "TURN服务器配置，用于中继连接"
   },
   "webrtc": {

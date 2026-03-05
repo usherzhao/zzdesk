@@ -247,10 +247,24 @@ pm2 save
 3. 使用测试工具验证服务器配置
 4. 参考故障排除章节
 
-## 📄 许可证
+## 支持docker部署
 
-本项目基于MIT许可证开源。
+```base
+#编译容器
+build -t webrtc-desktop
 
+#启动容器
+docker run -d \
+  --name webrtc-system \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -p 3478:3478/tcp \
+  -p 3478:3478/udp \
+  -p 49152-49200:49152-49200/udp \
+  -e TURN_USER="my_user" \
+  -e TURN_PASS="my_pass" \
+  webrtc-desktop
+```
 ---
 
 🎉 **开始使用WebRTC远程桌面系统，享受高质量的远程桌面体验！**
